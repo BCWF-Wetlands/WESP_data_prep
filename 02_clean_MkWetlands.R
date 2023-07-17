@@ -44,7 +44,9 @@ VRI_wetlands_1 <- VRI_raw %>%
             TRUE ~ 0))
 
 #Data Checking
-#write_sf(VRI_wetlands_1, file.path(spatialOutDir,"VRI_wetlands_1.gpkg"))
+write_sf(VRI_wetlands_1, file.path(spatialOutDir,"VRI_wetlands_1.gpkg"))
+#VRI_wetlands_1<-st_read(file.path(spatialOutDir,"VRI_wetlands_1.gpkg"))
+
 table(VRI_wetlands_1$wetlandType)
 tt<-VRI_wetlands_1 %>%
   filter(wetlandType==6 & NON_VEG_COVER_TYPE_1 =='RI')
@@ -60,11 +62,24 @@ table(VRI_wetlands_2$wetlandType)
 
 #Erase water (lakes and rivers, not streams) from wetlands
 VRI_wetlands_3 <- VRI_wetlands_2 %>%
-  rmapshaper::ms_erase(Erase_water, remove_slivers=TRUE)
-#routine changes geometry column name, need to change it back
+  rmapshaper::ms_erase(Erase_water, remove_slivers=TRUE) %>%
+  st_cast("POLYGON")
 st_geometry(VRI_wetlands_3) <- "geom"
-write_sf(VRI_wetlands_3, file.path(spatialOutDir,"VRI_wetlands_3.gpkg"))
-VRI_wetlands_3<-st_read(file.path(spatialOutDir,"VRI_wetlands_3.gpkg"))
+
+#Breaks geometry so need to fix
+Wetlands_Invalid<-VRI_wetlands_3 %>%
+  dplyr::filter(st_is_valid(VRI_wetlands_3)==FALSE)
+Wetlands_Invalid_fix <- Wetlands_Invalid %>%
+  st_make_valid()
+clgeo_IsValid(as(Wetlands_Invalid_fix,'Spatial'), verbose = FALSE) #TRUE
+
+Wetlands_Valid<-VRI_wetlands_3 %>%
+  dplyr::filter(st_is_valid(VRI_wetlands_3)==TRUE)
+clgeo_IsValid(as(Wetlands_Valid,'Spatial'), verbose = FALSE) #TRUE
+VRI_wetlands_4<- rbind(Wetlands_Valid,Wetlands_Invalid_fix)
+clgeo_IsValid(as(VRI_wetlands_4,'Spatial'), verbose = TRUE)
+write_sf(VRI_wetlands_4, file.path(spatialOutDir,"VRI_wetlands_4.gpkg"))
+#VRI_wetlands_4<-st_read(file.path(spatialOutDir,"VRI_wetlands_4.gpkg"))
 
 #load FWA wetlands
 FWA_wetlandsIn<-FWA_wetlands %>%
@@ -73,38 +88,44 @@ FWA_wetlandsIn<-FWA_wetlands %>%
   dplyr::select(wetland,wetlandType)
 
 #Combine VRI and FWI wetlands
-VRI_wetlands_4 <- rbind(VRI_wetlands_3,FWA_wetlandsIn)
-write_sf(VRI_wetlands_4, file.path(spatialOutDir,"VRI_wetlands_4.gpkg"))
-#VRI_wetlands_4<-st_read(file.path(spatialOutDir,"VRI_wetlands_4.gpkg"))
+VRI_FWA_wetlands_1 <- rbind(VRI_wetlands_4,FWA_wetlandsIn) %>%
+
+write_sf(VRI_FWA_wetlands_1, file.path(spatialOutDir,"VRI_FWA_wetlands_1.gpkg"))
+#VRI_FWA_wetlands_1<-st_read(file.path(spatialOutDir,"VRI_FWA_wetlands_1.gpkg"))
+clgeo_IsValid(as(VRI_FWA_wetlands_1,'Spatial'), verbose = TRUE)
 
 #aggregate overlapping wetlands into single polygon
-VRI_wetlands_5<- VRI_wetlands_4 %>%
+VRI_FWA_wetlands_2<- VRI_FWA_wetlands_1 %>%
   dplyr::group_by(wetland) %>%
   #dplyr::summarize(geometry = st_combine(geom)) %>%
-  dplyr::summarize() %>%
+  dplyr::summarize(n=n()) %>%
   st_cast('POLYGON') %>%
-  dplyr::ungroup()
+  dplyr::ungroup() %>%
+  st_buffer(dist=0)
+
+VRI_FWA_wetlands_2<-st_make_valid(VRI_FWA_wetlands_2)
+clgeo_IsValid(as(VRI_FWA_wetlands_2,'Spatial'), verbose = TRUE)
 
 #Remove slivers
 #check for empty geometry
-VRI_wetlands_6<-VRI_wetlands_5 %>%
+Wet_Check_1<-VRI_FWA_wetlands_2 %>%
   dplyr::filter(st_is_empty(.))
-nrow(VRI_wetlands_6)
+nrow(Wet_Check_1)
 #check that there are no duplicate geometries
-VRI_wetlands_6<-VRI_wetlands_5 %>%
+Wet_Check_2<-VRI_FWA_wetlands_2 %>%
   dplyr::distinct(.)
-nrow(VRI_wetlands_6)
+nrow(Wet_Check_2)
 #Remove small 'sliver' polygons less than 1 ha
 #Smallest FWA wetland
 FWA_wetlandsCheck<-FWA_wetlands %>%
   mutate(area_Ha=as.numeric(st_area(.)*0.0001))
 min(FWA_wetlandsCheck$area_Ha)
 #Smallest VRI wetland
-VRI_wetlandsCheck<-VRI_wetlands_3 %>%
+VRI_wetlandsCheck<-VRI_wetlands_6 %>%
   mutate(area_Ha=as.numeric(st_area(.)*0.0001))
 min(VRI_wetlandsCheck$area_Ha)
 #Smallest complex wetland
-wetlandsCheck<-VRI_wetlands_5 %>%
+wetlandsCheck<-VRI_FWA_wetlands_2 %>%
   mutate(area_Ha=as.numeric(st_area(.)*0.0001))
 min(wetlandsCheck$area_Ha)
 
@@ -112,7 +133,7 @@ min(wetlandsCheck$area_Ha)
 #Assign numeric wetland ID and character WTLND_ID
 SampleCols <- c(Sampled = NA, YearSampled = NA, SampleType = NA)
 
-WetlandsAll <- VRI_wetlands_5 %>%
+WetlandsAll <- VRI_FWA_wetlands_2 %>%
   #When re-read wet_id can. change
   mutate(wet_id = row_number()) %>%
   mutate(WTLND_ID=paste0(WetlandAreaShort,'_',wet_id)) %>%
@@ -120,5 +141,6 @@ WetlandsAll <- VRI_wetlands_5 %>%
   add_column(!!!SampleCols[!names(SampleCols) %in% names(.)]) %>%
   dplyr::filter(area_Ha>0.01)
 
+write_sf(WetlandsAll, file.path(spatialOutDir,"WetlandsAll_in.gpkg"))
 write_sf(WetlandsAll, file.path(spatialOutDir,"WetlandsAll.gpkg"))
 

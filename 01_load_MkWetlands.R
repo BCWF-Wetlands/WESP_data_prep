@@ -69,7 +69,17 @@ Erase_water<-rbind(FWA_lakes,FWA_rivers) %>%
 
 write_sf(Erase_water, file.path(spatialOutDir,"Erase_water.gpkg"))
 
+##Estuary Section
+#Pacific Birds Estuary
+#https://pacificbirds.org/2021/02/an-updated-ranking-of-british-columbias-estuaries/
+PECP_Estuary<-read_sf(file.path(DataDir,'EstuaryData/PECP_Estuary_Shapefiles_PUBLIC/PECP_estuary_polys_ranked_2019_PUBLIC.shp'))
+st_crs(PECP_Estuary) <- 3005
+write_sf(PECP_Estuary, file.path(spatialOutDirP,"PECP_Estuary.gpkg"))
 
+#Provincial Shorelines SHZN_SHORE_UNIT_CLASS_POLYS_SV
+Shoreline<-read_sf(file.path(DataDir,'PROVdata/Shoreline/SHZN_SHORE_UNIT_CLASS_POLYS_SV/SU_CL_PY_S_polygon.shp'))
+st_crs(Shoreline) <- 3005
+write_sf(Shoreline, file.path(spatialOutDirP,"Shoreline.gpkg"))
 
 
 

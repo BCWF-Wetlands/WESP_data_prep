@@ -17,8 +17,9 @@
 #2. pre-made wetlands with no sampling info
 #3. old wetlands with sampling info
 
-WetlandsAllin<-st_read(file.path(spatialOutDir,"WetlandsAll.gpkg")) %>%
-  mutate(wet_id=seq.int(nrow(.))) #%>%
+WetlandsAllin<-st_read(file.path(spatialOutDir,"WetlandsAll.gpkg")) #%>%
+#  mutate(wet_id=seq.int(nrow(.))) %>%
+#  mutate(area_Ha=as.numeric(st_area(.)*0.0001))
 #if new calculate WTLND_ID as well
   #mutate(WTLND_ID=paste0(WetlandAreaShort,'_',wet_id))
 st_crs(WetlandsAllin) <- 3005
@@ -69,7 +70,6 @@ sp.clean <- clgeo_Clean(as(Wetlands,'Spatial'))
 clgeo_IsValid(sp.clean, verbose = FALSE)
 Wetlands<-st_as_sf(sp.clean)
 
-
 #Generate final centroid version of data with proper wet_id
 wetlandsXY <- st_centroid(Wetlands)
 wetpt <- st_coordinates(wetlandsXY)
@@ -97,12 +97,12 @@ clgeo_IsValid(as(Wetlands,'Spatial'), verbose = FALSE)
 
 table(Wetlands$Sampled, Wetlands$YearSampled) #46 26
 
-#Data Check
+##############Data Check
 #tt<-Wetlands %>%
 #  dplyr::filter(WTLND_ID %in% c('TP_1_1','TP_1_2','TP_1_3','TP_1_4','TP_1_5')
 
 
-flowCheck<-WetlandsAll %>%
-  st_drop_geometry() %>%
-  dplyr::filter(WTLND_ID %in% c("GD_28685", "GD_26201", "GD_26246", "GD_27213", "GD_27576", "GD_27905", "GD_27932", "GD_99999"))
+#flowCheck<-WetlandsAll %>%
+#  st_drop_geometry() %>%
+#  dplyr::filter(WTLND_ID %in% c("GD_28685", "GD_26201", "GD_26246", "GD_27213", "GD_27576", "GD_27905", "GD_27932", "GD_99999"))
   #dplyr::filter(stream_intersect=='unknown')

@@ -43,6 +43,7 @@ write_sf(AOI, file.path(spatialOutDir,"SI.shp"))
 
 #Base load
 source('01_base_load.R')
+#source('01_load.R') - if needed
 
 #Creating new EcoProvince base wetlands
 #source('01_load_MkWetlands.R')
@@ -63,14 +64,20 @@ source('01_base_load.R')
 #Generates PEM wetlands not in base wetlands and saves to Sub_Boreal_PEM directory
 # these can then be prepared for design by the 02_clean_pre_designe_wetlands.R script
 
+#PEM data for SI
+#source('02_clean_field_SI.R') #for SI since requires specific clean up - including adding OK PEM polygons
+
 #Adding field data
 #source('01_load_2022Field.R')
+#source('02_clean_Field_SIM.R') #for SIM since requires specific clean up
 #source('02_clean_Field_SB.R') #for SB since requires specific clean up
 #source('02_clean_field_TBP.R') #for TBP since requires specific clean up
 #source('02_clean_field_GD.R') #for GD since requires specific clean up
+#source('02_clean_field_GD_Est.R') #for GD Estuary since requires specific clean up
 
 #Get data sets prepped for design stage
 #source('02_clean_pre_design_wetlands.R')
+
 
 
 
