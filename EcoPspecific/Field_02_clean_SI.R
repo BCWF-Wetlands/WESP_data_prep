@@ -14,83 +14,44 @@
 # checks if there are WTLND_ID that were sampled but not present in SampleStrata
 # checks if it is a name change or if it is a new set of wetlands that needs to be added
 
-#Read in EcoProvince Field Data
-Field2022<-st_read(file.path(dataOutDir,paste0(WetlandAreaDir,"_2022Field.gpkg"))) %>%
-  dplyr::select(WTLND_ID,Sampled,YearSampled,SampleType)
-table(Field2022$Sampled)
-table(Field2022$YearSampled)
+#Read in EcoProvince Field Data - only the 2022 data
+Field2024<-st_read(file.path(dataOutDir,paste0(WetlandAreaDir,"_2024Field.gpkg")))
+table(Field2024$Sampled)#25
+table(Field2024$YearSampled)
+table(Wetlands$YearSampled)
+table(Field2024$ObsLandcover1)
+table(Field2024$ObsDist1)
+#Clean up field data
+#Wetland_Ids with no data?
+wetsToCheck<-c('SI_16367')
 
-#Taiga-Boreal clean up...
-#Read in EcoProvince Sample Strata Wetlands from 02_clean_pre_made_wetlands or make
-SampleStrata2021<-st_read(file.path(spatialOutDir,"SampleStrata2021.gpkg"))
+Check<-Field2024 %>%
+  dplyr::filter(WTLND_ID %in% wetsToCheck)
+st_write(Check,file.path(dataOutDir,paste0(WetlandAreaDir,"_Check.gpkg")))
 
-#issues with pre-built polygons being multi-polygon so cast as polygon and fix
+#Fix SI_16367
+Field2024<-Field2024 %>%
+  mutate(ObsLandcover1=ifelse(WTLND_ID %in% wetsToCheck, 'Coniferous',ObsLandcover1)) %>%
+  mutate(ObsDist1=ifelse(WTLND_ID %in% wetsToCheck, 'not_disturbed',ObsDist1))
 
-#Check if unique Wetland ids
-n_occur <- data.frame(table(SampleStrata2021$WTLND_ID))
-n_occur[n_occur$Freq > 1,]
-#Make a sf/data frame of non uniques
-NonUnique<-SampleStrata2021[SampleStrata2021$WTLND_ID %in% n_occur$Var1[n_occur$Freq > 1],]
-#write_sf(NonUnique, file.path(spatialOutDir,"NonUnique.gpkg"))
-#Make a data.frame of non unique and check
-NonUniqueData<-NonUnique %>%
-  mutate(area_Ha=as.numeric(st_area(.)*0.0001)) %>%
-  st_drop_geometry()
 
-#drop duplicate records
-SampleStrata2021_1 <- SampleStrata2021 %>% distinct()
+#Read in SampleStrata2023 data and clean up, so has only 2021, 2022 and 2023 data
+#SampleStrata2023.in<-read_sf(file.path(spatialOutDirDraw,"SampleStrataGeo_SI.gpkg"))
+SampleStrata2023.in<-read_sf(file.path(spatialOutDirDesign,"SampleStrata2023.gpkg"))
+table(SampleStrata2023.in$YearSampled)
+##Compare Wetlands and SampleStrata to see what wetlands are missing
+setdiff(Wetlands$WTLND_ID, SampleStrata2023.in$WTLND_ID)
 
-#Check if multiple WTLDN_IDs
-n_occur <- data.frame(table(SampleStrata2021_1$WTLND_ID))
-n_occur[n_occur$Freq > 1,]
-#change WTLND_ID for unique
-NonUnique2<-SampleStrata2021_1[SampleStrata2021_1$WTLND_ID %in% n_occur$Var1[n_occur$Freq > 1],]
-NonUniqueData2<-NonUnique2 %>%
-  mutate(area_Ha=as.numeric(st_area(.)*0.0001)) %>%
-  st_drop_geometry()
-saveRDS(SampleStrata2021_1,file='tmp/SampleStrata2021_1')
-table(SampleStrata2021_1$Sampled, SampleStrata2021_1$YearSampled) #51
-
-SampleStrata2021_fix <- SampleStrata2021_1 %>%
-  dplyr::filter(WTLND_ID %in% NonUniqueData2$WTLND_ID) %>%
-  group_by(WTLND_ID) %>%
-  mutate(Wet_num=sequence(n())) %>%
-  ungroup() %>%
-  mutate(WTLND_ID=paste0(WTLND_ID,'_',Wet_num)) %>%
-  dplyr::select(-c('Wet_num'))
-
-SampleStrata2021_2<-SampleStrata2021_1 %>%
-  dplyr::filter(!WTLND_ID %in% NonUniqueData2$WTLND_ID)
-
-SampleStrata2021.1<- rbind(SampleStrata2021_2,SampleStrata2021_fix)
-
-tt<-SampleStrata2021.1 %>%
-  st_drop_geometry() %>%
-  dplyr::filter(YearSampled==2021)
-# GD_28685 has limited data
-
-#Check if wetalnds sampled in 2022 are in SampleStrata
-WTLND_Check<-SampleStrata2021.1 %>%
-  dplyr::filter(WTLND_ID %in% Field2022$WTLND_ID)
-nrow(WTLND_Check)#6
-WTLND_Check<-Field2022 %>%
-  dplyr::filter(!WTLND_ID %in% SampleStrata2021.1$WTLND_ID)
-nrow(WTLND_Check)#1
-WTLND_Check$WTLND_ID #"GD_99999"
-WTLND_Check<-SampleStrata2021.1 %>%
-  dplyr::filter(Sampled>0)
-nrow(WTLND_Check)#63
-
-tt<-SampleStrata2021.1 %>%
-  st_drop_geometry() %>%
-  dplyr::filter(Sampled==1) %>%
-  dplyr::select(WTLND_ID)
-
-ttt<-Field2022 %>%
-  st_drop_geometry() %>%
-  dplyr::filter(YearSampled==2021) %>%
-  dplyr::select(WTLND_ID)
-
+#clean up the 2022 data so only pre 2022 samples - rename to 2021
+SampleStrata2022.in.1<-SampleStrata2022.in %>%
+  #dplyr::filter(YearSampled==1)
+  dplyr::mutate(YearSampled=ifelse(YearSampled==1,0,YearSampled)) %>%
+  dplyr::mutate(YearSampled=ifelse(YearSampled==2022,0,YearSampled)) %>%
+  dplyr::mutate(Sampled=ifelse(YearSampled==0,0,1)) %>%
+  dplyr::mutate(SampleType=ifelse(Sampled==0,0,SampleType))
+table(SampleStrata2022.in.1$Sampled)
+table(SampleStrata2022.in.1$YearSampled)
+write_sf(SampleStrata2022.in.1, file.path(spatialOutDir,"SampleStrata2022.in.1.gpkg"))
 
 #Save the pre-made flow attributes for the sample design
 FlowAttributesL<-c("stream_intersect" , "river_intersect", "mmwb_intersect", "lake_intersect",
@@ -99,13 +60,13 @@ FlowAttributesL<-c("stream_intersect" , "river_intersect", "mmwb_intersect", "la
 #BVWFattributesL<-c("dist_to_road","parcelmap_private","partner_site")
 BVWFattributesL<-c("dist_to_road","parcelmap_private","Nation","pct_private_ovlp")
 
-FlowAttributes<-SampleStrata2021.1 %>%
+FlowAttributes<-SampleStrata2022.in.1 %>%
   st_drop_geometry() %>%
   dplyr::select(WTLND_ID,FlowAttributesL) %>%
   mutate(Inflow=ifelse(Inflow=="`","No",Inflow))
 WriteXLS(FlowAttributes,file.path(dataOutDirDesign,paste('FlowAttributes.xlsx',sep='')))
 
-BVWFattributes<-SampleStrata2021.1 %>%
+BVWFattributes<-SampleStrata2022.in.1 %>%
   st_drop_geometry() %>%
   dplyr::select(WTLND_ID,BVWFattributesL)
 WriteXLS(BVWFattributes,file.path(dataOutDirDesign,paste('BVWFattributes.xlsx',sep='')))
@@ -122,19 +83,34 @@ dropDesignAttributes<-c("dist_to_road","stream_intersect","river_intersect","mmw
 SampleCols <- c(Sampled = NA, YearSampled = NA, SampleType = NA,
                 Observed_Landcover = NA, Observed_Disturbance = NA)
 
-SampleStrata2021 <- SampleStrata2021.1 %>%
+SampleStrata2022 <- SampleStrata2022.in.1 %>%
   mutate(area_Ha=as.numeric(st_area(.)*0.0001)) %>%
   dplyr::select(-any_of(dropDesignAttributes)) %>%
   add_column(!!!!!!SampleCols[!names(SampleCols) %in% names(.)]) %>%
   mutate_at(c("Sampled","SampleType","YearSampled"), as.numeric)
 #dplyr::filter(area_Ha<0.25) %>%
-table(SampleStrata2021$Sampled, SampleStrata2021$YearSampled) #51, 16
+table(SampleStrata2022$Sampled, SampleStrata2022$YearSampled) #51, 16
 
-#if not in SampleStrata then will need to add
+#Check if wetlands sampled in 2022 are in SampleStrata
+WTLND_Check<-SampleStrata2021 %>%
+  dplyr::filter(WTLND_ID %in% Field2022$WTLND_ID)
+nrow(WTLND_Check)#25 new sites
+#WTLND_ID.find<-SampleStrata2021 %>% dplyr::filter(WTLND_ID=='SIM_19693') #0
+
+WTLND_Check<-Field2022 %>%
+  dplyr::filter(!WTLND_ID %in% SampleStrata2021$WTLND_ID)
+nrow(WTLND_Check)# 1 labels not in Sample Strata
+# What ids not in strata?
+WTLND_Check$WTLND_ID #"SIM_25987" - new label added - see above
+
+WTLND_Check<-SampleStrata2021 %>%
+  dplyr::filter(Sampled>0)
+nrow(WTLND_Check)#46 original
+
 #Drop field wetlands from SampleStrata2021 & select sub-set of attributes
 SampleStrata2021.2 <- SampleStrata2021 %>%
   dplyr::filter(!WTLND_ID %in% Field2022$WTLND_ID)
-#write_sf(SampleStrata20201.2, file.path(spatialOutDir,"SampleStrata20201.2.gpkg"))
+write_sf(SampleStrata2021.2, file.path(spatialOutDir,"SampleStrata2021.2.gpkg"))
 
 SampleStrata2021.2.tojoin<-SampleStrata2021.2 %>%
   st_drop_geometry() %>%
@@ -150,15 +126,9 @@ WetlandsAll <- rbind(SampleStrata2021.3,Field2022) %>%
   mutate(area_Ha=as.numeric(st_area(.)*0.0001)) %>%
   left_join(SampleStrata2021.2.tojoin)
 
-table(WetlandsAll$Sampled)#70
+table(WetlandsAll$Sampled)#34
 table(WetlandsAll$YearSampled)
-#    2021 2022
-#     63    7
+#    0  2021  2022
+#25902    46    26
 
 write_sf(WetlandsAll, file.path(spatialOutDir,"WetlandsAll.gpkg"))
-
-
-flowCheck<-WetlandsAll %>%
-  st_drop_geometry() %>%
-  dplyr::filter(WTLND_ID %in% c("GD_28685", "GD_26201", "GD_26246", "GD_27213", "GD_27576", "GD_27905", "GD_27932", "GD_99999"))
-

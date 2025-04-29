@@ -17,18 +17,18 @@
 #2. pre-made wetlands with no sampling info
 #3. old wetlands with sampling info
 
-WetlandsAllin<-st_read(file.path(spatialOutDir,"WetlandsAll.gpkg")) #%>%
-#  mutate(wet_id=seq.int(nrow(.))) %>%
-#  mutate(area_Ha=as.numeric(st_area(.)*0.0001))
+WetlandsAllin<-st_read(file.path(spatialOutDir,"WetlandsAll.gpkg")) %>%
+  mutate(wet_id=seq.int(nrow(.))) %>%
+  mutate(area_Ha=as.numeric(st_area(.)*0.0001))
 #if new calculate WTLND_ID as well
   #mutate(WTLND_ID=paste0(WetlandAreaShort,'_',wet_id))
 st_crs(WetlandsAllin) <- 3005
 
 WetlandsAllin<-st_make_valid(WetlandsAllin)
 clgeo_IsValid(as(WetlandsAllin,'Spatial'), verbose = FALSE)
-sp.clean <- clgeo_Clean(as(WetlandsAllin,'Spatial'))
-clgeo_IsValid(sp.clean, verbose = FALSE)
-WetlandsAll.1<-st_as_sf(sp.clean)
+#sp.clean <- clgeo_Clean(as(WetlandsAllin,'Spatial'))
+#clgeo_IsValid(sp.clean, verbose = FALSE)
+#WetlandsAllin<-st_as_sf(sp.clean)
 
 #Check for missing hydro values
 #hydroCheck<-WetlandsAll.1 %>%
@@ -37,51 +37,13 @@ WetlandsAll.1<-st_as_sf(sp.clean)
 #Pull out wetlands >1000 ha as a special case - eg Tagia
 #Hard to type them with disturbance, land cover or even BEC due to size
 #Suggest randomly sampling large wetlands - 15 in the Taiga - sample 5 randomly
-Large_Wetlands<- WetlandsAll.1 %>%
+Large_Wetlands<- WetlandsAllin %>%
   dplyr::filter(area_Ha>=1000)
 #Make Wetlands all the rest
-Wetlands1 <- WetlandsAll.1 %>%
+Wetlands1 <- WetlandsAllin %>%
   mutate(LargeWetland=if_else(WTLND_ID %in% Large_Wetlands$WTLND_ID, ">=1000", "<1000"))
 
-# dplyr::filter(!(WTLND_ID %in% Large_Wetlands$WTLND_ID))
-
-#Generate centroid version of data
-wetlandsXY <- st_centroid(Wetlands1)
-wetpt <- st_coordinates(wetlandsXY)
-wetpt <- wetlandsXY %>%
-  cbind(wetpt) %>%
-  st_drop_geometry()
-
-wetland.pt <- st_as_sf(wetpt, coords= c("X","Y"), crs = 3005)
-
-wetland.pt1 <- wetland.pt
-st_crs(wetland.pt)<-3005
-
-#clip points to AOI to make sure wetland are entirely in AOI
-wetland.pt<-wetland.pt1 %>%
-  st_intersection(AOI)
-
-#drop wetlands on border if have not been sampled
-Wetlands <- Wetlands1 %>% #42709
-  dplyr::filter((WTLND_ID %in% wetland.pt$WTLND_ID) | Sampled==1) %>%
-  mutate(wet_id=as.numeric(rownames(.)))
-clgeo_IsValid(as(Wetlands,'Spatial'), verbose = FALSE)
-sp.clean <- clgeo_Clean(as(Wetlands,'Spatial'))
-clgeo_IsValid(sp.clean, verbose = FALSE)
-Wetlands<-st_as_sf(sp.clean)
-
-#Generate final centroid version of data with proper wet_id
-wetlandsXY <- st_centroid(Wetlands)
-wetpt <- st_coordinates(wetlandsXY)
-wetpt <- wetlandsXY %>%
-  cbind(wetpt) %>%
-  st_drop_geometry()
-
-wetland.pt <- st_as_sf(wetpt, coords= c("X","Y"), crs = 3005)
-
-#Wetlands Buffer - this can take a while
-WetlandsB<-st_buffer(Wetlands, dist=100) %>%
-  st_collection_extract("POLYGON")
+source('BufferNpoints.R')
 
 #Write out data
 write_sf(Wetlands, file.path(spatialOutDir,"Wetlands.gpkg"))
@@ -92,8 +54,6 @@ write_sf(WetlandsB, file.path(spatialOutDir,"WetlandsB.gpkg"))
 write_sf(Wetlands, file.path(spatialOutDirDesign,"Wetlands.gpkg"))
 write_sf(wetland.pt, file.path(spatialOutDirDesign,"wetland.pt.gpkg"))
 write_sf(WetlandsB, file.path(spatialOutDirDesign,"WetlandsB.gpkg"))
-
-clgeo_IsValid(as(Wetlands,'Spatial'), verbose = FALSE)
 
 table(Wetlands$Sampled, Wetlands$YearSampled) #46 26
 

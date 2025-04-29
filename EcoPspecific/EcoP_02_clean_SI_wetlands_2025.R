@@ -10,37 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and limitations under the License.
 
-#Read in supplied OK data
-OK_gdb<-file.path(SpatialDir,'SI_wetlands/Okanagan_Wetlands.gdb')
-OK_list <- st_layers(OK_gdb)
-OK_in <- read_sf(OK_gdb, layer = "Okanagan_Wetlands")
-
-#Use QGIS to reproject OK_in - st_transform was losing polygons and to clean
-# topology, use Vector/Geometry/CheckValidity then Processing/Toolbox/Fix geometries
-# then export to gpkg
-write_sf(OK_in, file.path(spatialOutDir,"OK_in.gpkg"))
-OK_in.1<-st_read(file.path(spatialOutDir,"OK_in_reproj_fix.gpkg"))
-#OK_in_reproj.1<-st_make_valid(OK_in_reproj)
-#Double check geometry validity
-clgeo_IsValid(as(OK_in.1,'Spatial'), verbose = FALSE)
-
-#intersect with AOI, select Unique_ID to link back to full data if needed
-# and cast as polygon and add a unique id
-OK_raw <- st_intersection(AOI, OK_in.1)
-st_geometry(OK_raw) <- "geom"
-
-OK_raw.1 <- OK_raw %>%
-  dplyr::select(Unique_ID) %>%
-  st_cast("POLYGON") %>%
-  mutate(OK_id=seq.int(nrow(.)))
-
-OK_raw.data<-OK_raw.1 %>%
-  st_drop_geometry()
-
-#Visualize data
-mapview(OK_raw.1) + mapview(AOI)
-write_sf(OK_raw.1, file.path(spatialOutDir,"OK_raw.1.gpkg"))
-#OK_raw.1<-st_read(file.path(spatialOutDir,"OK_raw.1.gpkg"))
 
 Wetlands.1 <- st_read(file.path(spatialOutDir,"WetlandsAll_in.gpkg")) %>%
   #When re-read wet_id can. change
@@ -200,7 +169,6 @@ WetlandsAll <- Wetlands.4 %>%
   add_column(!!!SampleCols[!names(SampleCols) %in% names(.)]) %>%
   dplyr::filter(area_Ha>0.01) #drops 308 wetlands
 
-write_sf(WetlandsAll, file.path(spatialOutDir,"WetlandsAll.gpkg"))
 
-#pass wetlands to the clean_pre_design_wetlands routine
+
 
